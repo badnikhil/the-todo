@@ -38,6 +38,7 @@ function App() {
 
   // App state
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [appError, setAppError] = useState('');
   const [todos, setTodos] = useState<Todo[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [usersList, setUsersList] = useState<User[]>([]);
@@ -104,6 +105,11 @@ function App() {
         
         if (!res.ok) {
           const errData = await res.json();
+          // Check if it's a Pydantic validation error (array of details)
+          if (Array.isArray(errData.detail)) {
+            const errorMsg = errData.detail.map((e: any) => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(', ');
+            throw new Error(errorMsg);
+          }
           throw new Error(errData.detail || 'Signup failed');
         }
         
@@ -124,6 +130,26 @@ function App() {
     setUsersList([]);
     setSelectedProjectId(null);
     setViewMode('todos');
+    setAppError('');
+  };
+
+  const handleApiError = async (res: Response) => {
+    if (res.status === 401) {
+      handleLogout();
+      return true;
+    }
+    if (!res.ok) {
+      let errData;
+      try { errData = await res.json(); } catch { errData = {}; }
+      if (Array.isArray(errData.detail)) {
+        setAppError(errData.detail.map((e: any) => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(', '));
+      } else {
+        setAppError(errData.detail || 'An error occurred');
+      }
+      setTimeout(() => setAppError(''), 5000);
+      return true;
+    }
+    return false;
   };
 
   // --- USER API ---
@@ -218,7 +244,7 @@ function App() {
         },
         body: JSON.stringify({ title: newProjectTitle }),
       });
-      if (response.status === 401) return handleLogout();
+      if (await handleApiError(response)) return;
       const newProject = await response.json();
       setProjects([...projects, newProject]);
       setNewProjectTitle('');
@@ -244,7 +270,7 @@ function App() {
         },
         body: JSON.stringify({ title: editProjectTitle }),
       });
-      if (response.status === 401) return handleLogout();
+      if (await handleApiError(response)) return;
       const updatedProject = await response.json();
       setProjects(projects.map((p) => (p.id === id ? updatedProject : p)));
       setEditingProjectId(null);
@@ -260,7 +286,7 @@ function App() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (response.status === 401) return handleLogout();
+        if (await handleApiError(response)) return;
       setProjects(projects.filter((p) => p.id !== id));
       setTodos(todos.filter(t => t.project_id !== id));
       if (selectedProjectId === id) setSelectedProjectId(null);
@@ -276,7 +302,7 @@ function App() {
       const response = await fetch(`${API_URL}/todos/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (response.status === 401) return handleLogout();
+        if (await handleApiError(response)) return;
       const data = await response.json();
       setTodos(data);
     } catch (error) {
@@ -299,7 +325,7 @@ function App() {
         },
         body: JSON.stringify({ title: newTitle, project_id: selectedProjectId }),
       });
-      if (response.status === 401) return handleLogout();
+        if (await handleApiError(response)) return;
       const newTodo = await response.json();
       setTodos([newTodo, ...todos]);
       setNewTitle('');
@@ -315,7 +341,7 @@ function App() {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` }
         });
-        if (response.status === 401) return handleLogout();
+          if (await handleApiError(response)) return;
         const updatedTodo = await response.json();
         setTodos(todos.map((t) => (t.id === todo.id ? updatedTodo : t)));
       } else {
@@ -327,7 +353,7 @@ function App() {
           },
           body: JSON.stringify({ completed: false }),
         });
-        if (response.status === 401) return handleLogout();
+          if (await handleApiError(response)) return;
         const updatedTodo = await response.json();
         setTodos(todos.map((t) => (t.id === todo.id ? updatedTodo : t)));
       }
@@ -351,7 +377,7 @@ function App() {
         },
         body: JSON.stringify({ title: editTodoTitle }),
       });
-      if (response.status === 401) return handleLogout();
+        if (await handleApiError(response)) return;
       const updatedTodo = await response.json();
       setTodos(todos.map((t) => (t.id === id ? updatedTodo : t)));
       setEditingTodoId(null);
@@ -366,7 +392,7 @@ function App() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (response.status === 401) return handleLogout();
+        if (await handleApiError(response)) return;
       setTodos(todos.filter((t) => t.id !== id));
     } catch (error) {
       console.error('Error deleting todo:', error);
@@ -525,6 +551,7 @@ function App() {
 
       {/* Main Content Area */}
       <main className="main-content">
+        {appError && <div className="app-error-banner">{appError}</div>}
         {viewMode === 'admin' ? (
           <div className="app-container">
             <div className="header">
