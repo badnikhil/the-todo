@@ -45,6 +45,19 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     return user
 
+# --- PHASE 5: RBAC Middleware ---
+class RoleChecker:
+    def __init__(self, allowed_roles: List[str]):
+        self.allowed_roles = allowed_roles
+
+    def __call__(self, user: models.User = Depends(get_current_user)):
+        if user.role not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Operation not permitted. Required role: {self.allowed_roles}"
+            )
+        return user
+
 @app.get("/health")
 def health_check(db: Session = Depends(get_db)):
     try:
@@ -82,6 +95,38 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 @app.get("/users/me", response_model=schemas.User)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
+
+# Admin-only endpoint
+@app.get("/users/", response_model=List[schemas.User])
+def read_all_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(RoleChecker(["admin", "owner"]))):
+    return db.query(models.User).offset(skip).limit(limit).all()
+
+# Superadmin-only endpoint
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(RoleChecker(["owner"]))):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if db_user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    db.delete(db_user)
+    db.commit()
+    return {"ok": True}
+
+@app.put("/users/{user_id}/role", response_model=schemas.User)
+def update_user_role(user_id: int, role_update: schemas.RoleUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(RoleChecker(["owner"]))):
+    if role_update.role not in ["owner", "admin", "member"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if db_user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot change your own role this way")
+        
+    db_user.role = role_update.role
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 # --- PROJECTS ---
 @app.post("/projects/", response_model=schemas.Project)

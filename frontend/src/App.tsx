@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Check, LogOut, LogIn, UserPlus, Folder, Inbox, LayoutDashboard, Edit2, X, Save } from 'lucide-react';
+import { Plus, Trash2, Check, LogOut, LogIn, UserPlus, Folder, Inbox, LayoutDashboard, Edit2, X, Users } from 'lucide-react';
 import './index.css';
+
+interface User {
+  id: number;
+  email: string;
+  is_active: boolean;
+  role: string;
+}
 
 interface Todo {
   id: number;
@@ -30,9 +37,13 @@ function App() {
   const [authError, setAuthError] = useState('');
 
   // App state
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [usersList, setUsersList] = useState<User[]>([]);
+  
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<'todos' | 'admin'>('todos');
   
   const [newTitle, setNewTitle] = useState('');
   const [newProjectTitle, setNewProjectTitle] = useState('');
@@ -47,10 +58,17 @@ function App() {
 
   useEffect(() => {
     if (token) {
+      fetchCurrentUser();
       fetchTodos();
       fetchProjects();
     }
   }, [token]);
+
+  useEffect(() => {
+    if (viewMode === 'admin' && token) {
+      fetchAllUsers();
+    }
+  }, [viewMode, token]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,9 +118,77 @@ function App() {
   const handleLogout = () => {
     setToken(null);
     localStorage.removeItem('token');
+    setCurrentUser(null);
     setTodos([]);
     setProjects([]);
+    setUsersList([]);
     setSelectedProjectId(null);
+    setViewMode('todos');
+  };
+
+  // --- USER API ---
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch(`${API_URL}/users/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.status === 401) return handleLogout();
+      const data = await response.json();
+      setCurrentUser(data);
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+    }
+  };
+
+  const fetchAllUsers = async () => {
+    try {
+      const response = await fetch(`${API_URL}/users/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.status === 403) {
+        setViewMode('todos');
+        return;
+      }
+      if (response.ok) {
+        const data = await response.json();
+        setUsersList(data);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  const deleteUser = async (id: number) => {
+    try {
+      const response = await fetch(`${API_URL}/users/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setUsersList(usersList.filter(u => u.id !== id));
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+    }
+  };
+
+  const updateUserRole = async (id: number, newRole: string) => {
+    try {
+      const response = await fetch(`${API_URL}/users/${id}/role`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ role: newRole })
+      });
+      if (response.ok) {
+        const updatedUser = await response.json();
+        setUsersList(usersList.map(u => u.id === id ? updatedUser : u));
+      }
+    } catch (error) {
+      console.error('Error updating role:', error);
+    }
   };
 
   // --- PROJECTS API ---
@@ -137,6 +223,7 @@ function App() {
       setProjects([...projects, newProject]);
       setNewProjectTitle('');
       setSelectedProjectId(newProject.id);
+      setViewMode('todos');
     } catch (error) {
       console.error('Error adding project:', error);
     }
@@ -175,7 +262,6 @@ function App() {
       });
       if (response.status === 401) return handleLogout();
       setProjects(projects.filter((p) => p.id !== id));
-      // Removing a project also deletes its todos on the backend
       setTodos(todos.filter(t => t.project_id !== id));
       if (selectedProjectId === id) setSelectedProjectId(null);
     } catch (error) {
@@ -351,18 +437,29 @@ function App() {
         
         <nav className="nav-menu">
           <button 
-            className={`nav-item ${selectedProjectId === null ? 'active' : ''}`}
-            onClick={() => setSelectedProjectId(null)}
+            className={`nav-item ${viewMode === 'todos' && selectedProjectId === null ? 'active' : ''}`}
+            onClick={() => { setViewMode('todos'); setSelectedProjectId(null); }}
           >
             <div className="nav-item-content">
               <Inbox size={18} /> <span>Inbox</span>
             </div>
           </button>
 
+          {(currentUser?.role === 'admin' || currentUser?.role === 'owner') && (
+            <button 
+              className={`nav-item ${viewMode === 'admin' ? 'active' : ''}`}
+              onClick={() => { setViewMode('admin'); setSelectedProjectId(null); }}
+            >
+              <div className="nav-item-content">
+                <Users size={18} /> <span>Admin Panel</span>
+              </div>
+            </button>
+          )}
+
           <div className="nav-section">
             <h3>Projects</h3>
             {projects.map(p => (
-              <div key={p.id} className={`nav-item-wrapper ${selectedProjectId === p.id ? 'active' : ''}`}>
+              <div key={p.id} className={`nav-item-wrapper ${viewMode === 'todos' && selectedProjectId === p.id ? 'active' : ''}`}>
                 {editingProjectId === p.id ? (
                   <div className="inline-edit-form">
                     <input 
@@ -380,8 +477,8 @@ function App() {
                   </div>
                 ) : (
                   <button 
-                    className={`nav-item ${selectedProjectId === p.id ? 'active' : ''}`}
-                    onClick={() => setSelectedProjectId(p.id)}
+                    className={`nav-item ${viewMode === 'todos' && selectedProjectId === p.id ? 'active' : ''}`}
+                    onClick={() => { setViewMode('todos'); setSelectedProjectId(p.id); }}
                   >
                     <div className="nav-item-content">
                       <Folder size={18} /> <span>{p.title}</span>
@@ -416,6 +513,10 @@ function App() {
         </nav>
 
         <div className="sidebar-footer">
+          <div style={{ padding: '0.8rem 1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            Logged in as {currentUser?.email} <br/>
+            Role: <span style={{color: 'var(--text-main)', textTransform: 'capitalize'}}>{currentUser?.role}</span>
+          </div>
           <button className="logout-btn" onClick={handleLogout} title="Log out">
             <LogOut size={18} /> Logout
           </button>
@@ -424,90 +525,41 @@ function App() {
 
       {/* Main Content Area */}
       <main className="main-content">
-        <div className="app-container">
-          <div className="header">
-            <h1>{selectedProjectTitle}</h1>
-            <p>Stay focused, stay productive.</p>
-          </div>
-
-          <form className="add-todo-form" onSubmit={addTodo}>
-            <div className="input-group">
-              <input
-                type="text"
-                className="input-field"
-                placeholder={`Add todo to ${selectedProjectTitle}...`}
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-              />
+        {viewMode === 'admin' ? (
+          <div className="app-container">
+            <div className="header">
+              <h1>Admin Dashboard</h1>
+              <p>Manage system users and access levels.</p>
             </div>
-            <button type="submit" className="add-btn">
-              <Plus size={24} />
-            </button>
-          </form>
-
-          <div className="todos-list">
-            {loading ? (
-              <div className="empty-state">Loading your todos...</div>
-            ) : visibleTodos.length === 0 ? (
-              <div className="empty-state">No todos here yet. Enjoy your day!</div>
-            ) : (
-              visibleTodos.map((todo, index) => (
+            
+            <div className="todos-list">
+              {usersList.map((u, index) => (
                 <div 
-                  key={todo.id} 
-                  className={`todo-item ${todo.completed ? 'completed' : ''}`}
+                  key={u.id} 
+                  className="todo-item"
                   style={{ animationDelay: `${index * 0.05}s` }}
                 >
-                  <div className="checkbox-wrapper" onClick={() => toggleTodo(todo)}>
-                    <div className="custom-checkbox">
-                      {todo.completed && <Check size={16} strokeWidth={3} />}
-                    </div>
-                  </div>
-                  
-                  <div className="todo-content">
-                    {editingTodoId === todo.id ? (
-                      <div className="inline-edit-form todo-edit">
-                        <input 
-                          autoFocus
-                          type="text" 
-                          value={editTodoTitle} 
-                          onChange={(e) => setEditTodoTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveTodoEdit(todo.id);
-                            if (e.key === 'Escape') setEditingTodoId(null);
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="todo-title">{todo.title}</div>
-                    )}
+                  <div className="todo-content" style={{ display: 'flex', alignItems: 'center' }}>
+                    <div className="todo-title">{u.email}</div>
+                    <span className={`role-badge ${u.role}`}>{u.role}</span>
                   </div>
                   
                   <div className="actions">
-                    {editingTodoId === todo.id ? (
+                    {currentUser?.role === 'owner' && u.id !== currentUser.id && (
                       <>
-                        <button className="action-btn success" onClick={() => saveTodoEdit(todo.id)}>
-                          <Check size={18} />
-                        </button>
-                        <button className="action-btn" onClick={() => setEditingTodoId(null)}>
-                          <X size={18} />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button 
-                          className="action-btn" 
-                          onClick={() => {
-                            setEditTodoTitle(todo.title);
-                            setEditingTodoId(todo.id);
-                          }}
-                          title="Edit"
+                        <select 
+                          className="role-select" 
+                          value={u.role} 
+                          onChange={(e) => updateUserRole(u.id, e.target.value)}
                         >
-                          <Edit2 size={18} />
-                        </button>
+                          <option value="member">Member</option>
+                          <option value="admin">Admin</option>
+                          <option value="owner">Owner</option>
+                        </select>
                         <button 
                           className="action-btn delete" 
-                          onClick={() => deleteTodo(todo.id)}
-                          title="Delete"
+                          onClick={() => deleteUser(u.id)}
+                          title="Delete User"
                         >
                           <Trash2 size={18} />
                         </button>
@@ -515,10 +567,106 @@ function App() {
                     )}
                   </div>
                 </div>
-              ))
-            )}
+              ))}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="app-container">
+            <div className="header">
+              <h1>{selectedProjectTitle}</h1>
+              <p>Stay focused, stay productive.</p>
+            </div>
+
+            <form className="add-todo-form" onSubmit={addTodo}>
+              <div className="input-group">
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder={`Add todo to ${selectedProjectTitle}...`}
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                />
+              </div>
+              <button type="submit" className="add-btn">
+                <Plus size={24} />
+              </button>
+            </form>
+
+            <div className="todos-list">
+              {loading ? (
+                <div className="empty-state">Loading your todos...</div>
+              ) : visibleTodos.length === 0 ? (
+                <div className="empty-state">No todos here yet. Enjoy your day!</div>
+              ) : (
+                visibleTodos.map((todo, index) => (
+                  <div 
+                    key={todo.id} 
+                    className={`todo-item ${todo.completed ? 'completed' : ''}`}
+                    style={{ animationDelay: `${index * 0.05}s` }}
+                  >
+                    <div className="checkbox-wrapper" onClick={() => toggleTodo(todo)}>
+                      <div className="custom-checkbox">
+                        {todo.completed && <Check size={16} strokeWidth={3} />}
+                      </div>
+                    </div>
+                    
+                    <div className="todo-content">
+                      {editingTodoId === todo.id ? (
+                        <div className="inline-edit-form todo-edit">
+                          <input 
+                            autoFocus
+                            type="text" 
+                            value={editTodoTitle} 
+                            onChange={(e) => setEditTodoTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveTodoEdit(todo.id);
+                              if (e.key === 'Escape') setEditingTodoId(null);
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="todo-title">{todo.title}</div>
+                      )}
+                    </div>
+                    
+                    <div className="actions">
+                      {editingTodoId === todo.id ? (
+                        <>
+                          <button className="action-btn success" onClick={() => saveTodoEdit(todo.id)}>
+                            <Check size={18} />
+                          </button>
+                          <button className="action-btn" onClick={() => setEditingTodoId(null)}>
+                            <X size={18} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button 
+                            className="action-btn" 
+                            onClick={() => {
+                              setEditTodoTitle(todo.title);
+                              setEditingTodoId(todo.id);
+                            }}
+                            title="Edit"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button 
+                            className="action-btn delete" 
+                            onClick={() => deleteTodo(todo.id)}
+                            title="Delete"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

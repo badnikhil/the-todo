@@ -11,15 +11,19 @@ class UserCreate(UserBase):
 class User(UserBase):
     id: int
     is_active: bool
+    role: str
 
     class Config:
         from_attributes = True
+
+class RoleUpdate(BaseModel):
+    role: str
 
 # --- PROJECTS ---
 class ProjectBase(BaseModel):
     title: str
     description: Optional[str] = None
-# project bass is same as project. Maybe in Future we may require it. Following High quality code practices
+# project base is same as project. Maybe in Future we may require it. Following High quality code practices
 class ProjectCreate(ProjectBase):
     pass
 
