@@ -629,6 +629,3 @@ Disable AI
 
 * Automated backups
 * Restore testing
-
-
-The important part: **don't start at Phase 40 thinking about Kafka, sharding, and Kubernetes.** Build each phase only when the previous phase works in production. The real learning comes from feeling the limitations of the current architecture and then introducing the next tool to solve an actual problem. That's how you develop system design intuition instead of just collecting technologies.
