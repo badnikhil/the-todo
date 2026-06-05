@@ -8,15 +8,14 @@ from database import get_db, engine, Base
 import models
 import schemas
 
-# Create database tables
+# Tables have been recreated for Phase 3 schema
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Todo API")
 
-# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for development
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,8 +29,35 @@ def health_check(db: Session = Depends(get_db)):
     except Exception as e:
         return {"status": "error", "database": str(e)}
 
-# --- TODO CRUD ---
+# --- USERS ---
+@app.post("/users/", response_model=schemas.User)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    # In Phase 4, we will hash the password. For now, we mock it.
+    fake_hashed_password = user.password + "notreallyhashed"
+    db_user = models.User(email=user.email, hashed_password=fake_hashed_password)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
+@app.get("/users/", response_model=List[schemas.User])
+def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return db.query(models.User).offset(skip).limit(limit).all()
+
+# --- PROJECTS ---
+@app.post("/projects/", response_model=schemas.Project)
+def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)):
+    db_project = models.Project(**project.model_dump())
+    db.add(db_project)
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+@app.get("/projects/", response_model=List[schemas.Project])
+def read_projects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return db.query(models.Project).offset(skip).limit(limit).all()
+
+# --- TODOS ---
 @app.post("/todos/", response_model=schemas.Todo)
 def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db)):
     db_todo = models.Todo(**todo.model_dump())
@@ -42,8 +68,7 @@ def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db)):
 
 @app.get("/todos/", response_model=List[schemas.Todo])
 def read_todos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    todos = db.query(models.Todo).order_by(models.Todo.id.desc()).offset(skip).limit(limit).all()
-    return todos
+    return db.query(models.Todo).order_by(models.Todo.id.desc()).offset(skip).limit(limit).all()
 
 @app.put("/todos/{todo_id}", response_model=schemas.Todo)
 def update_todo(todo_id: int, todo_update: schemas.TodoUpdate, db: Session = Depends(get_db)):

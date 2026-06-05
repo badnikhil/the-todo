@@ -1,5 +1,31 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
 from database import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    is_active = Column(Boolean, default=True)
+
+    todos = relationship("Todo", back_populates="owner")
+    projects = relationship("Project", back_populates="owner")
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    description = Column(String, nullable=True)
+    
+    # Foreign Keys
+    owner_id = Column(Integer, ForeignKey("users.id"))
+
+    # Relationships
+    owner = relationship("User", back_populates="projects")
+    todos = relationship("Todo", back_populates="project")
 
 class Todo(Base):
     __tablename__ = "todos"
@@ -8,3 +34,11 @@ class Todo(Base):
     title = Column(String, index=True)
     description = Column(String, nullable=True)
     completed = Column(Boolean, default=False)
+    
+    # Foreign Keys
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+
+    # Relationships
+    owner = relationship("User", back_populates="todos")
+    project = relationship("Project", back_populates="todos")
