@@ -19,9 +19,13 @@ class User(UserBase):
 class ProjectBase(BaseModel):
     title: str
     description: Optional[str] = None
-
+# project bass is same as project. Maybe in Future we may require it. Following High quality code practices
 class ProjectCreate(ProjectBase):
-    owner_id: int
+    pass
+
+class ProjectUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
 
 class Project(ProjectBase):
     id: int

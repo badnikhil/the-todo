@@ -99,6 +99,33 @@ def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)
 def read_projects(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.Project).filter(models.Project.owner_id == current_user.id).offset(skip).limit(limit).all()
 
+@app.put("/projects/{project_id}", response_model=schemas.Project)
+def update_project(project_id: int, project_update: schemas.ProjectUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    db_project = db.query(models.Project).filter(models.Project.id == project_id, models.Project.owner_id == current_user.id).first()
+    if db_project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    update_data = project_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_project, key, value)
+        
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+@app.delete("/projects/{project_id}")
+def delete_project(project_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    db_project = db.query(models.Project).filter(models.Project.id == project_id, models.Project.owner_id == current_user.id).first()
+    if db_project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Delete all todos inside this project
+    db.query(models.Todo).filter(models.Todo.project_id == project_id).delete()
+    
+    db.delete(db_project)
+    db.commit()
+    return {"ok": True}
+
 # --- TODOS ---
 @app.post("/todos/", response_model=schemas.Todo)
 def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
