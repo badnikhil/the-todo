@@ -55,9 +55,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
         
     # Check cache (Cache-aside pattern)
-    cached_user = redis_client.get(f"user:{email}")
+    cached_user = redis_client.hgetall(f"user:{email}")
     if cached_user:
-        return models.User(**json.loads(cached_user))
+        cached_user["id"] = int(cached_user["id"])
+        cached_user["is_active"] = cached_user["is_active"] == "True"
+        if cached_user.get("profile_picture_url") == "":
+            cached_user["profile_picture_url"] = None
+        return models.User(**cached_user)
         
     user = db.query(models.User).filter(models.User.email == email).first()
     if user is None:
@@ -65,14 +69,16 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         
     # Set cache with TTL
     user_dict = {
-        "id": user.id,
+        "id": str(user.id),
         "email": user.email,
-        "is_active": user.is_active,
+        "is_active": str(user.is_active),
         "role": user.role,
-        "profile_picture_url": user.profile_picture_url,
+        "profile_picture_url": user.profile_picture_url or "",
         "hashed_password": user.hashed_password
     }
-    redis_client.setex(f"user:{email}", 3600, json.dumps(user_dict))
+    redis_client.hset(f"user:{email}", mapping=user_dict)
+    redis_client.expire(f"user:{email}", 3600)
+
     
     return user
 
@@ -145,8 +151,8 @@ def upload_profile_picture(file: UploadFile = File(...), db: Session = Depends(g
     db.commit()
     db.refresh(current_user)
     
-    # Invalidate cache
-    redis_client.delete(f"user:{current_user.email}")
+    # Update cache field directly
+    redis_client.hset(f"user:{current_user.email}", "profile_picture_url", current_user.profile_picture_url)
     
     return current_user
 
@@ -181,8 +187,8 @@ def update_user_role(user_id: int, role_update: schemas.RoleUpdate, db: Session 
     db.commit()
     db.refresh(db_user)
     
-    # Invalidate cache
-    redis_client.delete(f"user:{db_user.email}")
+    # Update cache field directly
+    redis_client.hset(f"user:{db_user.email}", "role", db_user.role)
     
     return db_user
 
