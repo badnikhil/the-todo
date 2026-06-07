@@ -117,7 +117,7 @@ Learn:
 
 ---
 
-# PHASE 8 — Redis Introduction
+# PHASE 8 — Redis Introduction ✅
 
 Build:
 
