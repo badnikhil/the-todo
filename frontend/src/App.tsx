@@ -127,7 +127,17 @@ function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (token) {
+      try {
+        await fetch(`${API_URL}/logout`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (e) {
+        console.error('Logout error:', e);
+      }
+    }
     setToken(null);
     localStorage.removeItem('token');
     setCurrentUser(null);

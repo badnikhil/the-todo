@@ -46,12 +46,9 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    try:
-        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-    except JWTError:
+    # Verify session token in Redis
+    email = redis_client.get(f"session:{token}")
+    if not email:
         raise credentials_exception
         
     # Check cache (Cache-aside pattern)
@@ -123,11 +120,15 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     
-    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = auth.create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+    # Create an opaque session token and store in Redis
+    session_token = str(uuid.uuid4())
+    redis_client.setex(f"session:{session_token}", 86400, user.email)  # 1 day TTL
+    return {"access_token": session_token, "token_type": "bearer"}
+
+@app.post("/logout")
+def logout(token: str = Depends(oauth2_scheme)):
+    redis_client.delete(f"session:{token}")
+    return {"ok": True}
 
 @app.get("/users/me", response_model=schemas.User)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
