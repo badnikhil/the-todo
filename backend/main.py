@@ -11,10 +11,20 @@ from database import get_db, engine, Base
 import models
 import schemas
 import auth
+import os
+import shutil
+import uuid
+from fastapi.staticfiles import StaticFiles
+from fastapi import UploadFile, File
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Todo API")
+
+# Setup upload directories
+os.makedirs("uploads/profiles", exist_ok=True)
+os.makedirs("uploads/todos", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
@@ -100,6 +110,20 @@ def read_users_me(current_user: models.User = Depends(get_current_user)):
 @app.get("/users/", response_model=List[schemas.User])
 def read_all_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(RoleChecker(["admin", "owner"]))):
     return db.query(models.User).offset(skip).limit(limit).all()
+
+@app.post("/users/me/profile_picture", response_model=schemas.User)
+def upload_profile_picture(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    ext = file.filename.split(".")[-1]
+    filename = f"{uuid.uuid4()}.{ext}"
+    filepath = f"uploads/profiles/{filename}"
+    
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    current_user.profile_picture_url = f"/{filepath}"
+    db.commit()
+    db.refresh(current_user)
+    return current_user
 
 # Superadmin-only endpoint
 @app.delete("/users/{user_id}")
@@ -217,6 +241,24 @@ def complete_todo(todo_id: int, db: Session = Depends(get_db), current_user: mod
         raise HTTPException(status_code=404, detail="Todo not found")
     
     db_todo.completed = True
+    db.commit()
+    db.refresh(db_todo)
+    return db_todo
+
+@app.post("/todos/{todo_id}/attachment", response_model=schemas.Todo)
+def upload_todo_attachment(todo_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    db_todo = db.query(models.Todo).filter(models.Todo.id == todo_id, models.Todo.owner_id == current_user.id).first()
+    if not db_todo:
+        raise HTTPException(status_code=404, detail="Todo not found")
+        
+    ext = file.filename.split(".")[-1]
+    filename = f"{uuid.uuid4()}.{ext}"
+    filepath = f"uploads/todos/{filename}"
+    
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    db_todo.attachment_url = f"/{filepath}"
     db.commit()
     db.refresh(db_todo)
     return db_todo

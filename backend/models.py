@@ -10,6 +10,7 @@ class User(Base):
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
     role = Column(String, default="member")
+    profile_picture_url = Column(String, nullable=True)
 
     todos = relationship("Todo", back_populates="owner")
     projects = relationship("Project", back_populates="owner")
@@ -39,6 +40,7 @@ class Todo(Base):
     # Foreign Keys
     owner_id = Column(Integer, ForeignKey("users.id"))
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    attachment_url = Column(String, nullable=True)
 
     # Relationships
     owner = relationship("User", back_populates="todos")

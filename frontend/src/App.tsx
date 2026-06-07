@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Check, LogOut, LogIn, UserPlus, Folder, Inbox, LayoutDashboard, Edit2, X, Users } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, Check, LogOut, LogIn, UserPlus, Folder, Inbox, LayoutDashboard, Edit2, X, Users, Paperclip, Upload, User as UserIcon } from 'lucide-react';
 import './index.css';
 
 interface User {
@@ -7,6 +7,7 @@ interface User {
   email: string;
   is_active: boolean;
   role: string;
+  profile_picture_url: string | null;
 }
 
 interface Todo {
@@ -16,6 +17,7 @@ interface Todo {
   completed: boolean;
   project_id: number | null;
   owner_id: number;
+  attachment_url: string | null;
 }
 
 interface Project {
@@ -56,6 +58,10 @@ function App() {
   
   const [editingTodoId, setEditingTodoId] = useState<number | null>(null);
   const [editTodoTitle, setEditTodoTitle] = useState('');
+  
+  const profileInputRef = useRef<HTMLInputElement>(null);
+  const todoAttachmentRef = useRef<HTMLInputElement>(null);
+  const [activeTodoUploadId, setActiveTodoUploadId] = useState<number | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -208,12 +214,32 @@ function App() {
         },
         body: JSON.stringify({ role: newRole })
       });
-      if (response.ok) {
-        const updatedUser = await response.json();
-        setUsersList(usersList.map(u => u.id === id ? updatedUser : u));
-      }
+      if (await handleApiError(response)) return;
+      const updatedUser = await response.json();
+      setUsersList(usersList.map(u => u.id === id ? updatedUser : u));
     } catch (error) {
       console.error('Error updating role:', error);
+    }
+  };
+
+  const uploadProfilePicture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`${API_URL}/users/me/profile_picture`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      if (await handleApiError(response)) return;
+      const updatedUser = await response.json();
+      setCurrentUser(updatedUser);
+    } catch (error) {
+      console.error('Error uploading profile picture:', error);
     }
   };
 
@@ -399,6 +425,30 @@ function App() {
     }
   };
 
+  const uploadTodoAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!activeTodoUploadId) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`${API_URL}/todos/${activeTodoUploadId}/attachment`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      if (await handleApiError(response)) return;
+      const updatedTodo = await response.json();
+      setTodos(todos.map((t) => (t.id === activeTodoUploadId ? updatedTodo : t)));
+    } catch (error) {
+      console.error('Error uploading attachment:', error);
+    } finally {
+      setActiveTodoUploadId(null);
+    }
+  };
+
 
   // --- RENDER VIEWS ---
   if (!token) {
@@ -415,12 +465,11 @@ function App() {
               {authError && <div className="auth-error">{authError}</div>}
               
               <input
-                type="email"
+                type="text"
                 className="input-field"
                 placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
               />
               <input
                 type="password"
@@ -428,7 +477,6 @@ function App() {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
               />
               
               <button type="submit" className="auth-btn">
@@ -539,9 +587,29 @@ function App() {
         </nav>
 
         <div className="sidebar-footer">
-          <div style={{ padding: '0.8rem 1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Logged in as {currentUser?.email} <br/>
-            Role: <span style={{color: 'var(--text-main)', textTransform: 'capitalize'}}>{currentUser?.role}</span>
+          <div className="profile-section">
+            <div 
+              className="profile-avatar" 
+              onClick={() => profileInputRef.current?.click()}
+              title="Change Profile Picture"
+            >
+              {currentUser?.profile_picture_url ? (
+                <img src={`${API_URL}${currentUser.profile_picture_url}`} alt="Avatar" className="profile-avatar" style={{ border: 'none' }} />
+              ) : (
+                <UserIcon size={20} color="var(--text-muted)" />
+              )}
+            </div>
+            <input 
+              type="file" 
+              ref={profileInputRef} 
+              style={{ display: 'none' }} 
+              onChange={uploadProfilePicture}
+              accept="image/*"
+            />
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              Logged in as {currentUser?.email} <br/>
+              Role: <span style={{color: 'var(--text-main)', textTransform: 'capitalize'}}>{currentUser?.role}</span>
+            </div>
           </div>
           <button className="logout-btn" onClick={handleLogout} title="Log out">
             <LogOut size={18} /> Logout
@@ -652,7 +720,20 @@ function App() {
                           />
                         </div>
                       ) : (
-                        <div className="todo-title">{todo.title}</div>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <div className="todo-title">{todo.title}</div>
+                          {todo.attachment_url && (
+                            <a 
+                              href={`${API_URL}${todo.attachment_url}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="attachment-link"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Paperclip size={14} /> Attachment
+                            </a>
+                          )}
+                        </div>
                       )}
                     </div>
                     
@@ -668,6 +749,16 @@ function App() {
                         </>
                       ) : (
                         <>
+                          <button 
+                            className="action-btn" 
+                            onClick={() => {
+                              setActiveTodoUploadId(todo.id);
+                              todoAttachmentRef.current?.click();
+                            }}
+                            title="Attach File"
+                          >
+                            <Upload size={18} />
+                          </button>
                           <button 
                             className="action-btn" 
                             onClick={() => {
@@ -692,6 +783,13 @@ function App() {
                 ))
               )}
             </div>
+            {/* Hidden file input for Todo Attachments */}
+            <input 
+              type="file" 
+              ref={todoAttachmentRef} 
+              style={{ display: 'none' }} 
+              onChange={uploadTodoAttachment}
+            />
           </div>
         )}
       </main>

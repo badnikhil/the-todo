@@ -14,6 +14,7 @@ class User(UserBase):
     id: int
     is_active: bool
     role: str
+    profile_picture_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -74,6 +75,7 @@ class TodoUpdate(BaseModel):
 class Todo(TodoBase):
     id: int
     owner_id: Optional[int] = None
+    attachment_url: Optional[str] = None
 
     class Config:
         from_attributes = True
