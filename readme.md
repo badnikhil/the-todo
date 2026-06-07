@@ -1,4 +1,4 @@
-# PHASE 1 — Project Setup
+# PHASE 1 — Project Setup ✅
 
 Build:
 
@@ -21,7 +21,7 @@ Learn:
 
 ---
 
-# PHASE 2 — Basic Todo CRUD
+# PHASE 2 — Basic Todo CRUD ✅
 
 Build:
 
@@ -38,7 +38,7 @@ Learn:
 
 ---
 
-# PHASE 3 — Database Design
+# PHASE 3 — Database Design ✅
 
 Build:
 
@@ -55,7 +55,7 @@ Learn:
 
 ---
 
-# PHASE 4 — Authentication
+# PHASE 4 — Authentication ✅
 
 Build:
 
@@ -72,7 +72,7 @@ Learn:
 
 ---
 
-# PHASE 5 — Authorization
+# PHASE 5 — Authorization ✅
 
 Build:
 
@@ -88,7 +88,7 @@ Learn:
 
 ---
 
-# PHASE 6 — Validation
+# PHASE 6 — Validation ✅
 
 Build:
 
@@ -102,7 +102,7 @@ Learn:
 
 ---
 
-# PHASE 7 — File Uploads
+# PHASE 7 — File Uploads ✅
 
 Build:
 
