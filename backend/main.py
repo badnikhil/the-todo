@@ -16,6 +16,10 @@ import shutil
 import uuid
 from fastapi.staticfiles import StaticFiles
 from fastapi import UploadFile, File
+import redis
+import json
+
+redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=6379, db=0, decode_responses=True)
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -50,9 +54,26 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     except JWTError:
         raise credentials_exception
         
+    # Check cache (Cache-aside pattern)
+    cached_user = redis_client.get(f"user:{email}")
+    if cached_user:
+        return models.User(**json.loads(cached_user))
+        
     user = db.query(models.User).filter(models.User.email == email).first()
     if user is None:
         raise credentials_exception
+        
+    # Set cache with TTL
+    user_dict = {
+        "id": user.id,
+        "email": user.email,
+        "is_active": user.is_active,
+        "role": user.role,
+        "profile_picture_url": user.profile_picture_url,
+        "hashed_password": user.hashed_password
+    }
+    redis_client.setex(f"user:{email}", 3600, json.dumps(user_dict))
+    
     return user
 
 # --- PHASE 5: RBAC Middleware ---
@@ -123,6 +144,10 @@ def upload_profile_picture(file: UploadFile = File(...), db: Session = Depends(g
     current_user.profile_picture_url = f"/{filepath}"
     db.commit()
     db.refresh(current_user)
+    
+    # Invalidate cache
+    redis_client.delete(f"user:{current_user.email}")
+    
     return current_user
 
 # Superadmin-only endpoint
@@ -133,8 +158,13 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: model
         raise HTTPException(status_code=404, detail="User not found")
     if db_user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    email = db_user.email
     db.delete(db_user)
     db.commit()
+    
+    # Invalidate cache
+    redis_client.delete(f"user:{email}")
+    
     return {"ok": True}
 
 @app.put("/users/{user_id}/role", response_model=schemas.User)
@@ -150,6 +180,10 @@ def update_user_role(user_id: int, role_update: schemas.RoleUpdate, db: Session 
     db_user.role = role_update.role
     db.commit()
     db.refresh(db_user)
+    
+    # Invalidate cache
+    redis_client.delete(f"user:{db_user.email}")
+    
     return db_user
 
 # --- PROJECTS ---
