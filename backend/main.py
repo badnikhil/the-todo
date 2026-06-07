@@ -1,11 +1,9 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List
-from datetime import timedelta
-from jose import JWTError, jwt
 
 from database import get_db, engine, Base
 import models
@@ -91,6 +89,22 @@ class RoleChecker:
                 detail=f"Operation not permitted. Required role: {self.allowed_roles}"
             )
         return user
+
+# --- PHASE 10: Rate Limiting ---
+class RateLimiter:
+    def __init__(self, requests: int = 10, window: int = 60):
+        self.requests = requests
+        self.window = window
+
+    def __call__(self, request: Request, current_user: models.User = Depends(get_current_user)):
+        # Distributed rate limiting using Redis Fixed Window
+        key = f"rate_limit:{current_user.email}:{request.url.path}"
+        current = redis_client.incr(key)
+        if current == 1:
+            redis_client.expire(key, self.window)
+        if current > self.requests:
+            raise HTTPException(status_code=429, detail="Too many requests. Please slow down.")
+        return current_user
 
 @app.get("/health")
 def health_check(db: Session = Depends(get_db)):
@@ -195,7 +209,7 @@ def update_user_role(user_id: int, role_update: schemas.RoleUpdate, db: Session 
 
 # --- PROJECTS ---
 @app.post("/projects/", response_model=schemas.Project)
-def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), current_user: models.User = Depends(RateLimiter(requests=5, window=60))):
     # Override owner_id to be current authenticated user
     project_data = project.model_dump()
     project_data["owner_id"] = current_user.id
@@ -238,7 +252,7 @@ def delete_project(project_id: int, db: Session = Depends(get_db), current_user:
 
 # --- TODOS ---
 @app.post("/todos/", response_model=schemas.Todo)
-def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(RateLimiter(requests=10, window=60))):
     todo_data = todo.model_dump()
     todo_data["owner_id"] = current_user.id
     db_todo = models.Todo(**todo_data)
