@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, List
+from datetime import datetime
 
 # --- USERS ---
 class UserBase(BaseModel):
@@ -55,6 +56,7 @@ class TodoBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
     completed: bool = False
+    due_date: Optional[datetime] = None
     project_id: Optional[int] = None
 
     @field_validator('title')
@@ -70,6 +72,7 @@ class TodoUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
     completed: Optional[bool] = None
+    due_date: Optional[datetime] = None
     project_id: Optional[int] = None
 
 class Todo(TodoBase):
@@ -77,5 +80,17 @@ class Todo(TodoBase):
     owner_id: Optional[int] = None
     attachment_url: Optional[str] = None
 
+    class Config:
+        from_attributes = True
+
+# --- NOTIFICATIONS ---
+class NotificationBase(BaseModel):
+    message: str
+    is_read: bool = False
+
+class NotificationOut(NotificationBase):
+    id: int
+    created_at: datetime
+    
     class Config:
         from_attributes = True

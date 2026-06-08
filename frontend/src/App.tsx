@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Check, LogOut, LogIn, UserPlus, Folder, Inbox, LayoutDashboard, Edit2, X, Users, Paperclip, Upload, User as UserIcon } from 'lucide-react';
+import { Plus, Trash2, Check, LogOut, LogIn, UserPlus, Folder, Inbox, LayoutDashboard, Edit2, X, Users, Paperclip, Upload, User as UserIcon, Calendar, Bell } from 'lucide-react';
 import './index.css';
 
 interface User {
@@ -18,6 +18,7 @@ interface Todo {
   project_id: number | null;
   owner_id: number;
   attachment_url: string | null;
+  due_date: string | null;
 }
 
 interface Project {
@@ -50,6 +51,7 @@ function App() {
   const [viewMode, setViewMode] = useState<'todos' | 'admin'>('todos');
   
   const [newTitle, setNewTitle] = useState('');
+  const [newDueDate, setNewDueDate] = useState('');
   const [newProjectTitle, setNewProjectTitle] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -59,6 +61,7 @@ function App() {
   
   const [editingTodoId, setEditingTodoId] = useState<number | null>(null);
   const [editTodoTitle, setEditTodoTitle] = useState('');
+  const [editTodoDueDate, setEditTodoDueDate] = useState('');
   
   const profileInputRef = useRef<HTMLInputElement>(null);
   const todoAttachmentRef = useRef<HTMLInputElement>(null);
@@ -68,6 +71,7 @@ function App() {
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [globalTodos, setGlobalTodos] = useState<number>(0);
   const [globalProjects, setGlobalProjects] = useState<number>(0);
+  const [notifications, setNotifications] = useState<{id: number, message: string, is_read: boolean, created_at: string}[]>([]);
 
   useEffect(() => {
     if (!token) return;
@@ -80,6 +84,8 @@ function App() {
         if (data.online_users !== undefined) setOnlineUsers(data.online_users);
         if (data.total_todos !== undefined) setGlobalTodos(data.total_todos);
         if (data.total_projects !== undefined) setGlobalProjects(data.total_projects);
+      } else if (data.type === 'notification') {
+        setNotifications(prev => [{id: data.id, message: data.message, is_read: data.is_read, created_at: new Date().toISOString()}, ...prev]);
       }
     };
 
@@ -93,6 +99,7 @@ function App() {
       fetchCurrentUser();
       fetchTodos();
       fetchProjects();
+      fetchNotifications();
     }
   }, [token]);
 
@@ -373,6 +380,34 @@ function App() {
     }
   };
 
+  // --- NOTIFICATIONS API ---
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetch(`${API_URL}/notifications/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      setNotifications(data);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
+  const markNotificationRead = async (id: number) => {
+    try {
+      const response = await fetch(`${API_URL}/notifications/${id}/read`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+      }
+    } catch (error) {
+      console.error('Error marking notification read:', error);
+    }
+  };
+
   const addTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
@@ -384,12 +419,17 @@ function App() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ title: newTitle, project_id: selectedProjectId }),
+        body: JSON.stringify({ 
+          title: newTitle, 
+          project_id: selectedProjectId,
+          due_date: newDueDate ? new Date(newDueDate).toISOString() : null
+        }),
       });
         if (await handleApiError(response)) return;
       const newTodo = await response.json();
       setTodos([newTodo, ...todos]);
       setNewTitle('');
+      setNewDueDate('');
     } catch (error) {
       console.error('Error adding todo:', error);
     }
@@ -436,7 +476,10 @@ function App() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ title: editTodoTitle }),
+        body: JSON.stringify({ 
+          title: editTodoTitle,
+          due_date: editTodoDueDate ? new Date(editTodoDueDate).toISOString() : null
+        }),
       });
         if (await handleApiError(response)) return;
       const updatedTodo = await response.json();
@@ -622,6 +665,41 @@ function App() {
         </nav>
 
         <div className="sidebar-footer">
+          {notifications.length > 0 && (
+            <div className="notifications-panel" style={{ padding: '0 1rem 1rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Bell size={14} /> Notifications 
+                  {notifications.filter(n => !n.is_read).length > 0 && (
+                    <span style={{ background: 'var(--danger-color)', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '10px', fontSize: '0.7rem' }}>
+                      {notifications.filter(n => !n.is_read).length}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '150px', overflowY: 'auto' }}>
+                {notifications.map(n => (
+                  <div 
+                    key={n.id} 
+                    onClick={() => !n.is_read && markNotificationRead(n.id)}
+                    style={{ 
+                      fontSize: '0.85rem', 
+                      padding: '0.5rem', 
+                      background: n.is_read ? 'transparent' : 'var(--bg-card)', 
+                      borderRadius: '4px', 
+                      borderLeft: `3px solid ${n.is_read ? 'transparent' : 'var(--primary-color)'}`,
+                      cursor: n.is_read ? 'default' : 'pointer',
+                      opacity: n.is_read ? 0.6 : 1
+                    }}
+                    title={!n.is_read ? "Click to mark as read" : ""}
+                  >
+                    {n.message}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="global-stats" style={{ padding: '0 1rem 1rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
               <span>🟢 Online Users:</span>
@@ -721,19 +799,33 @@ function App() {
               <p>Stay focused, stay productive.</p>
             </div>
 
-            <form className="add-todo-form" onSubmit={addTodo}>
-              <div className="input-group">
+            <form className="add-todo-form" onSubmit={addTodo} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+              <div className="input-group" style={{ margin: 0 }}>
                 <input
                   type="text"
                   className="input-field"
                   placeholder={`Add todo to ${selectedProjectTitle}...`}
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
+                  style={{ marginBottom: 0 }}
                 />
               </div>
-              <button type="submit" className="add-btn">
-                <Plus size={24} />
-              </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}>
+                  <Calendar size={18} />
+                  <input 
+                    type="datetime-local" 
+                    className="input-field"
+                    value={newDueDate}
+                    onChange={(e) => setNewDueDate(e.target.value)}
+                    style={{ width: 'auto', margin: 0, padding: '0.3rem 0.5rem', fontSize: '0.85rem' }}
+                    title="Optional Due Date"
+                  />
+                </div>
+                <button type="submit" className="add-btn" style={{ padding: '0.5rem 1rem', borderRadius: '4px', width: 'auto', height: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                  <Plus size={18} /> Add Task
+                </button>
+              </div>
             </form>
 
             <div className="todos-list">
@@ -756,12 +848,23 @@ function App() {
                     
                     <div className="todo-content">
                       {editingTodoId === todo.id ? (
-                        <div className="inline-edit-form todo-edit">
+                        <div className="inline-edit-form todo-edit" style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
                           <input 
                             autoFocus
                             type="text" 
+                            style={{ flex: 1, border: '1px solid var(--border-color)', borderRadius: '4px', padding: '0.2rem 0.5rem' }}
                             value={editTodoTitle} 
                             onChange={(e) => setEditTodoTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveTodoEdit(todo.id);
+                              if (e.key === 'Escape') setEditingTodoId(null);
+                            }}
+                          />
+                          <input 
+                            type="datetime-local" 
+                            style={{ width: 'auto', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '0.2rem 0.5rem' }}
+                            value={editTodoDueDate}
+                            onChange={(e) => setEditTodoDueDate(e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') saveTodoEdit(todo.id);
                               if (e.key === 'Escape') setEditingTodoId(null);
@@ -781,6 +884,11 @@ function App() {
                             >
                               <Paperclip size={14} /> Attachment
                             </a>
+                          )}
+                          {todo.due_date && (
+                            <div className="due-date-badge" style={{ fontSize: '0.75rem', color: new Date(todo.due_date + 'Z') < new Date() && !todo.completed ? 'var(--danger-color)' : 'var(--text-muted)', marginLeft: '1rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                              <span>⏱</span> {new Date(todo.due_date + 'Z').toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                            </div>
                           )}
                         </div>
                       )}
@@ -812,6 +920,11 @@ function App() {
                             className="action-btn" 
                             onClick={() => {
                               setEditTodoTitle(todo.title);
+                              setEditTodoDueDate(
+                                todo.due_date 
+                                  ? new Date(new Date(todo.due_date + 'Z').getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16) 
+                                  : ''
+                              );
                               setEditingTodoId(todo.id);
                             }}
                             title="Edit"

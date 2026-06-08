@@ -45,6 +45,10 @@ body {
   flex-direction: column;
   padding: 2rem 1.5rem;
   backdrop-filter: blur(12px);
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
 }
 
 .sidebar-header {

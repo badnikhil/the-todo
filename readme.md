@@ -185,7 +185,7 @@ Learn:
 
 ---
 
-# PHASE 13 — Notifications
+# PHASE 13 — Notifications ✅
 
 Build:
 
@@ -198,7 +198,7 @@ Learn:
 
 ---
 
-# PHASE 14 — Background Jobs
+# PHASE 14 — Background Jobs ✅
 
 Build:
 

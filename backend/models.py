@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from database import Base
+from datetime import datetime
 
 class User(Base):
     __tablename__ = "users"
@@ -36,6 +37,7 @@ class Todo(Base):
     title = Column(String, index=True)
     description = Column(String, nullable=True)
     completed = Column(Boolean, default=False)
+    due_date = Column(DateTime, nullable=True)
     
     # Foreign Keys
     owner_id = Column(Integer, ForeignKey("users.id"))
@@ -45,3 +47,14 @@ class Todo(Base):
     # Relationships
     owner = relationship("User", back_populates="todos")
     project = relationship("Project", back_populates="todos")
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    message = Column(String)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user_id = Column(Integer, ForeignKey("users.id"))
+    user = relationship("User")

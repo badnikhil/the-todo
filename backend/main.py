@@ -15,7 +15,9 @@ import uuid
 from fastapi.staticfiles import StaticFiles
 from fastapi import UploadFile, File
 import redis
+import redis.asyncio as redis_async
 import json
+import asyncio
 
 redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=6379, db=0, decode_responses=True)
 
@@ -57,7 +59,31 @@ class ConnectionManager:
             except:
                 pass
 
+    async def send_personal_message(self, message: dict, email: str):
+        for connection, conn_email in self.active_connections.items():
+            if conn_email == email:
+                try:
+                    await connection.send_json(message)
+                except:
+                    pass
+
 manager = ConnectionManager()
+
+async def redis_listener():
+    r = redis_async.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=6379, db=0, decode_responses=True)
+    pubsub = r.pubsub()
+    await pubsub.subscribe("notifications")
+    async for message in pubsub.listen():
+        if message["type"] == "message":
+            try:
+                data = json.loads(message["data"])
+                await manager.send_personal_message(data, data["email"])
+            except Exception as e:
+                print(f"Error processing notification: {e}")
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(redis_listener())
 
 async def broadcast_stats(total_todos: int = None, total_projects: int = None):
     msg = {"type": "stats_update"}
@@ -398,3 +424,19 @@ def upload_todo_attachment(todo_id: int, file: UploadFile = File(...), db: Sessi
     db.commit()
     db.refresh(db_todo)
     return db_todo
+
+# --- NOTIFICATIONS ---
+@app.get("/notifications/", response_model=List[schemas.NotificationOut])
+def get_notifications(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return db.query(models.Notification).filter(models.Notification.user_id == current_user.id).order_by(models.Notification.created_at.desc()).all()
+
+@app.post("/notifications/{notification_id}/read", response_model=schemas.NotificationOut)
+def read_notification(notification_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    db_notification = db.query(models.Notification).filter(models.Notification.id == notification_id, models.Notification.user_id == current_user.id).first()
+    if not db_notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
+        
+    db_notification.is_read = True
+    db.commit()
+    db.refresh(db_notification)
+    return db_notification
