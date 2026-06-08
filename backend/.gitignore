@@ -4,3 +4,11 @@ venv/
 .venv/
 .env
 uploads/
+
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat-schedule.dir
+celerybeat-schedule.dat
+celerybeat-schedule.bak
+*.pid
