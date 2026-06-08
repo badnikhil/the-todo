@@ -73,24 +73,49 @@ function App() {
   const [globalProjects, setGlobalProjects] = useState<number>(0);
   const [notifications, setNotifications] = useState<{id: number, message: string, is_read: boolean, created_at: string}[]>([]);
 
+  const wsRef = useRef<WebSocket | null>(null);
+  const wsReconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (!token) return;
-    
-    const ws = new WebSocket(`${WS_URL}?token=${token}`);
-    
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'init' || data.type === 'stats_update' || data.type === 'presence') {
-        if (data.online_users !== undefined) setOnlineUsers(data.online_users);
-        if (data.total_todos !== undefined) setGlobalTodos(data.total_todos);
-        if (data.total_projects !== undefined) setGlobalProjects(data.total_projects);
-      } else if (data.type === 'notification') {
-        setNotifications(prev => [{id: data.id, message: data.message, is_read: data.is_read, created_at: new Date().toISOString()}, ...prev]);
-      }
+
+    let destroyed = false;
+
+    const connect = () => {
+      if (destroyed) return;
+
+      const ws = new WebSocket(`${WS_URL}?token=${token}`);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'init' || data.type === 'stats_update' || data.type === 'presence') {
+          if (data.online_users !== undefined) setOnlineUsers(data.online_users);
+          if (data.total_todos !== undefined) setGlobalTodos(data.total_todos);
+          if (data.total_projects !== undefined) setGlobalProjects(data.total_projects);
+        } else if (data.type === 'notification') {
+          setNotifications(prev => [{id: data.id, message: data.message, is_read: data.is_read, created_at: new Date().toISOString()}, ...prev]);
+        }
+      };
+
+      ws.onclose = () => {
+        if (!destroyed) {
+          // Reconnect after 3 seconds
+          wsReconnectTimer.current = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close(); // triggers onclose → reconnect
+      };
     };
 
+    connect();
+
     return () => {
-      ws.close();
+      destroyed = true;
+      if (wsReconnectTimer.current) clearTimeout(wsReconnectTimer.current);
+      wsRef.current?.close();
     };
   }, [token]);
 
