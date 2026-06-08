@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Request, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -30,13 +30,73 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv("FRONTEND_URLS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173").split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+ 
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[WebSocket, str] = {}
+
+    async def connect(self, websocket: WebSocket, email: str):
+        await websocket.accept()
+        self.active_connections[websocket] = email
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            del self.active_connections[websocket]
+
+    async def broadcast(self, message: dict):
+        for connection in list(self.active_connections.keys()):
+            try:
+                await connection.send_json(message)
+            except:
+                pass
+
+manager = ConnectionManager()
+
+async def broadcast_stats(total_todos: int = None, total_projects: int = None):
+    msg = {"type": "stats_update"}
+    if total_todos is not None:
+        msg["total_todos"] = total_todos
+    if total_projects is not None:
+        msg["total_projects"] = total_projects
+    await manager.broadcast(msg)
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Depends(get_db)):
+    email = redis_client.get(f"session:{token}")
+    if not email:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+        
+    await manager.connect(websocket, email)
+    
+    total_todos = db.query(models.Todo).count()
+    total_projects = db.query(models.Project).count()
+    online_users = list(set(manager.active_connections.values()))
+    
+    await manager.broadcast({
+        "type": "init",
+        "online_users": online_users,
+        "total_todos": total_todos,
+        "total_projects": total_projects
+    })
+    
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        online_users = list(set(manager.active_connections.values()))
+        await manager.broadcast({
+            "type": "presence",
+            "online_users": online_users
+        })
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -209,7 +269,7 @@ def update_user_role(user_id: int, role_update: schemas.RoleUpdate, db: Session 
 
 # --- PROJECTS ---
 @app.post("/projects/", response_model=schemas.Project)
-def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), current_user: models.User = Depends(RateLimiter(requests=5, window=60))):
+def create_project(project: schemas.ProjectCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: models.User = Depends(RateLimiter(requests=5, window=60))):
     # Override owner_id to be current authenticated user
     project_data = project.model_dump()
     project_data["owner_id"] = current_user.id
@@ -217,6 +277,11 @@ def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
+    
+    # Broadcast new count
+    total_projects = db.query(models.Project).count()
+    background_tasks.add_task(broadcast_stats, total_projects=total_projects)
+    
     return db_project
 
 @app.get("/projects/", response_model=List[schemas.Project])
@@ -238,7 +303,7 @@ def update_project(project_id: int, project_update: schemas.ProjectUpdate, db: S
     return db_project
 
 @app.delete("/projects/{project_id}")
-def delete_project(project_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def delete_project(project_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_project = db.query(models.Project).filter(models.Project.id == project_id, models.Project.owner_id == current_user.id).first()
     if db_project is None:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -248,17 +313,28 @@ def delete_project(project_id: int, db: Session = Depends(get_db), current_user:
     
     db.delete(db_project)
     db.commit()
+    
+    # Broadcast new counts
+    total_projects = db.query(models.Project).count()
+    total_todos = db.query(models.Todo).count()
+    background_tasks.add_task(broadcast_stats, total_todos=total_todos, total_projects=total_projects)
+    
     return {"ok": True}
 
 # --- TODOS ---
 @app.post("/todos/", response_model=schemas.Todo)
-def create_todo(todo: schemas.TodoCreate, db: Session = Depends(get_db), current_user: models.User = Depends(RateLimiter(requests=10, window=60))):
+def create_todo(todo: schemas.TodoCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: models.User = Depends(RateLimiter(requests=10, window=60))):
     todo_data = todo.model_dump()
     todo_data["owner_id"] = current_user.id
     db_todo = models.Todo(**todo_data)
     db.add(db_todo)
     db.commit()
     db.refresh(db_todo)
+    
+    # Broadcast new count
+    total_todos = db.query(models.Todo).count()
+    background_tasks.add_task(broadcast_stats, total_todos=total_todos)
+    
     return db_todo
 
 @app.get("/todos/", response_model=List[schemas.Todo])
@@ -280,13 +356,18 @@ def update_todo(todo_id: int, todo_update: schemas.TodoUpdate, db: Session = Dep
     return db_todo
 
 @app.delete("/todos/{todo_id}")
-def delete_todo(todo_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def delete_todo(todo_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_todo = db.query(models.Todo).filter(models.Todo.id == todo_id, models.Todo.owner_id == current_user.id).first()
     if db_todo is None:
         raise HTTPException(status_code=404, detail="Todo not found")
     
     db.delete(db_todo)
     db.commit()
+    
+    # Broadcast new count
+    total_todos = db.query(models.Todo).count()
+    background_tasks.add_task(broadcast_stats, total_todos=total_todos)
+    
     return {"ok": True}
 
 @app.post("/todos/{todo_id}/complete", response_model=schemas.Todo)

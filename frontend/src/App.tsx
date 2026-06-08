@@ -27,7 +27,8 @@ interface Project {
   owner_id: number;
 }
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
 
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
@@ -62,6 +63,30 @@ function App() {
   const profileInputRef = useRef<HTMLInputElement>(null);
   const todoAttachmentRef = useRef<HTMLInputElement>(null);
   const [activeTodoUploadId, setActiveTodoUploadId] = useState<number | null>(null);
+
+  // Global WebSocket Stats
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [globalTodos, setGlobalTodos] = useState<number>(0);
+  const [globalProjects, setGlobalProjects] = useState<number>(0);
+
+  useEffect(() => {
+    if (!token) return;
+    
+    const ws = new WebSocket(`${WS_URL}?token=${token}`);
+    
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'init' || data.type === 'stats_update' || data.type === 'presence') {
+        if (data.online_users !== undefined) setOnlineUsers(data.online_users);
+        if (data.total_todos !== undefined) setGlobalTodos(data.total_todos);
+        if (data.total_projects !== undefined) setGlobalProjects(data.total_projects);
+      }
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [token]);
 
   useEffect(() => {
     if (token) {
@@ -597,6 +622,20 @@ function App() {
         </nav>
 
         <div className="sidebar-footer">
+          <div className="global-stats" style={{ padding: '0 1rem 1rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span>🟢 Online Users:</span>
+              <span style={{ fontWeight: 600, color: 'var(--primary-color)' }}>{onlineUsers.length}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span>📝 Total Todos:</span>
+              <span style={{ fontWeight: 600 }}>{globalTodos}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>📁 Total Projects:</span>
+              <span style={{ fontWeight: 600 }}>{globalProjects}</span>
+            </div>
+          </div>
           <div className="profile-section">
             <div 
               className="profile-avatar" 

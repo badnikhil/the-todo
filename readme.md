@@ -158,7 +158,7 @@ Learn:
 
 ---
 
-# PHASE 11 — WebSockets
+# PHASE 11 — WebSockets ✅
 
 Build:
 
@@ -171,11 +171,12 @@ Learn:
 
 ---
 
-# PHASE 12 — Presence System
+# PHASE 12 — Presence System ✅
 
 Build:
 
-* Online users
+* Total Online users
+* Total no of todos and projects Created
 
 Learn:
 
