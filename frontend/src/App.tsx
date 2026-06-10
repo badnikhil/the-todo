@@ -28,8 +28,8 @@ interface Project {
   owner_id: number;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/ws';
 
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
@@ -691,12 +691,12 @@ function App() {
 
         <div className="sidebar-footer">
           {notifications.length > 0 && (
-            <div className="notifications-panel" style={{ padding: '0 1rem 1rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+            <div className="notifications-panel" style={{ padding: '0 1rem 1rem 1rem', borderBottom: '1px solid var(--border)', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                   <Bell size={14} /> Notifications 
                   {notifications.filter(n => !n.is_read).length > 0 && (
-                    <span style={{ background: 'var(--danger-color)', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '10px', fontSize: '0.7rem' }}>
+                    <span style={{ background: 'var(--danger)', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '10px', fontSize: '0.7rem' }}>
                       {notifications.filter(n => !n.is_read).length}
                     </span>
                   )}
@@ -712,7 +712,7 @@ function App() {
                       padding: '0.5rem', 
                       background: n.is_read ? 'transparent' : 'var(--bg-card)', 
                       borderRadius: '4px', 
-                      borderLeft: `3px solid ${n.is_read ? 'transparent' : 'var(--primary-color)'}`,
+                      borderLeft: `3px solid ${n.is_read ? 'transparent' : 'var(--accent)'}`,
                       cursor: n.is_read ? 'default' : 'pointer',
                       opacity: n.is_read ? 0.6 : 1
                     }}
@@ -725,10 +725,10 @@ function App() {
             </div>
           )}
 
-          <div className="global-stats" style={{ padding: '0 1rem 1rem 1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          <div className="global-stats" style={{ padding: '0 1rem 1rem 1rem', borderBottom: '1px solid var(--border)', marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
               <span>🟢 Online Users:</span>
-              <span style={{ fontWeight: 600, color: 'var(--primary-color)' }}>{onlineUsers.length}</span>
+              <span style={{ fontWeight: 600, color: 'var(--accent)' }}>{onlineUsers.length}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
               <span>📝 Total Todos:</span>

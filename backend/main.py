@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import os
 import asyncio
+from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 
 from database import get_db, engine
@@ -44,15 +45,15 @@ async def startup_event():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Depends(get_db)):
-    email = redis_client.get(f"session:{token}")
+    email = await run_in_threadpool(redis_client.get, f"session:{token}")
     if not email:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
         
     await manager.connect(websocket, email)
     
-    total_todos = db.query(models.Todo).count()
-    total_projects = db.query(models.Project).count()
+    total_todos = await run_in_threadpool(db.query(models.Todo).count)
+    total_projects = await run_in_threadpool(db.query(models.Project).count)
     online_users = list(set(manager.active_connections.values()))
     
     await manager.broadcast({

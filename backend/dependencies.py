@@ -27,7 +27,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         cached_user["is_active"] = cached_user["is_active"] == "True"
         if cached_user.get("profile_picture_url") == "":
             cached_user["profile_picture_url"] = None
-        return models.User(**cached_user)
+            
+        # Create the user object from cache without attaching it to the session
+        # to avoid unnecessary database queries.
+        user = models.User(**cached_user)
+        return user
         
     user = db.query(models.User).filter(models.User.email == email).first()
     if user is None:
