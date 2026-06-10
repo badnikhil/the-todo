@@ -24,6 +24,11 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    
+    # Send verification email
+    from email_service import send_verification_email
+    send_verification_email(user.email)
+    
     return db_user
 
 @router.post("/login", response_model=schemas.Token)
