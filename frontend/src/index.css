@@ -123,6 +123,7 @@ body {
 
 .add-project-form input {
   flex: 1;
+  min-width: 0;
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid var(--border);
   padding: 0.6rem 1rem;
@@ -137,6 +138,7 @@ body {
 }
 
 .add-project-form button {
+  flex-shrink: 0;
   background: var(--accent-gradient);
   border: none;
   border-radius: 10px;
@@ -678,5 +680,69 @@ body {
 
 .attachment-link:hover {
   background: rgba(99, 102, 241, 0.2);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .app-layout {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100%;
+    height: auto;
+    max-height: 40vh;
+    position: relative;
+    padding: 1.5rem 1rem;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .main-content {
+    padding: 2rem 1rem;
+  }
+
+  .header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 1rem;
+  }
+
+  .header > div {
+    width: 100%;
+  }
+
+  .header input.input-field {
+    width: 100% !important;
+  }
+
+  .add-todo-form > div:last-child {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem;
+  }
+
+  .add-todo-form input[type="datetime-local"] {
+    width: 100% !important;
+  }
+
+  .add-btn {
+    width: 100% !important;
+    justify-content: center;
+    padding: 0.8rem !important;
+  }
+
+  .todo-item {
+    flex-wrap: wrap;
+    gap: 0.8rem;
+  }
+  
+  .inline-edit-form {
+    flex-wrap: wrap;
+  }
+  
+  .inline-edit-form.todo-edit input[type="datetime-local"] {
+    width: 100% !important;
+  }
 }
 

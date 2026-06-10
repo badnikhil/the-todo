@@ -53,6 +53,7 @@ function App() {
   const [newTitle, setNewTitle] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [newProjectTitle, setNewProjectTitle] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Edit state
@@ -122,11 +123,19 @@ function App() {
   useEffect(() => {
     if (token) {
       fetchCurrentUser();
-      fetchTodos();
       fetchProjects();
       fetchNotifications();
     }
   }, [token]);
+
+  useEffect(() => {
+    if (token) {
+      const delayDebounceFn = setTimeout(() => {
+        fetchTodos(searchQuery);
+      }, 300);
+      return () => clearTimeout(delayDebounceFn);
+    }
+  }, [searchQuery, token]);
 
   useEffect(() => {
     if (viewMode === 'admin' && token) {
@@ -389,10 +398,11 @@ function App() {
   };
 
   // --- TODOS API ---
-  const fetchTodos = async () => {
+  const fetchTodos = async (query = searchQuery) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/todos/`, {
+      const url = query.trim() ? `${API_URL}/todos/?q=${encodeURIComponent(query)}` : `${API_URL}/todos/`;
+      const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
         if (await handleApiError(response)) return;
@@ -819,9 +829,21 @@ function App() {
           </div>
         ) : (
           <div className="app-container">
-            <div className="header">
-              <h1>{selectedProjectTitle}</h1>
-              <p>Stay focused, stay productive.</p>
+            <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h1>{selectedProjectTitle}</h1>
+                <p>Stay focused, stay productive.</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="Search todos..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="input-field"
+                  style={{ width: '250px', marginBottom: 0 }}
+                />
+              </div>
             </div>
 
             <form className="add-todo-form" onSubmit={addTodo} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>

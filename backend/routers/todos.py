@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import or_
+from typing import List, Optional
 import uuid
 import shutil
 
@@ -26,8 +27,17 @@ def create_todo(todo: schemas.TodoCreate, background_tasks: BackgroundTasks, db:
     return db_todo
 
 @router.get("/", response_model=List[schemas.Todo])
-def read_todos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    return db.query(models.Todo).filter(models.Todo.owner_id == current_user.id).order_by(models.Todo.id.desc()).offset(skip).limit(limit).all()
+def read_todos(q: Optional[str] = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    query = db.query(models.Todo).filter(models.Todo.owner_id == current_user.id)
+    if q:
+        search_pattern = f"%{q}%"
+        query = query.filter(
+            or_(
+                models.Todo.title.ilike(search_pattern),
+                models.Todo.description.ilike(search_pattern)
+            )
+        )
+    return query.order_by(models.Todo.id.desc()).offset(skip).limit(limit).all()
 
 @router.put("/{todo_id}", response_model=schemas.Todo)
 def update_todo(todo_id: int, todo_update: schemas.TodoUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
