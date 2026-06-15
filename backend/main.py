@@ -1,5 +1,10 @@
-from fastapi import FastAPI, Depends, status, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, status, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from asgi_correlation_id import CorrelationIdMiddleware
+import time
+from logger import setup_logging, logger
+
+setup_logging()
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import os
@@ -31,6 +36,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(CorrelationIdMiddleware)
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    logger.info("request_started", method=request.method, url=str(request.url))
+    
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        logger.info("request_finished", method=request.method, url=str(request.url), status_code=response.status_code, process_time=process_time)
+        return response
+    except Exception as e:
+        process_time = time.time() - start_time
+        logger.error("request_failed", method=request.method, url=str(request.url), error=str(e), process_time=process_time)
+        raise
 
 # Include Routers
 app.include_router(auth.router)

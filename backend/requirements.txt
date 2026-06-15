@@ -8,3 +8,5 @@ python-multipart
 email-validator
 redis
 celery
+structlog
+asgi-correlation-id
