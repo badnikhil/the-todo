@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, status, WebSocket, WebSocketDisconnect, Re
 from fastapi.middleware.cors import CORSMiddleware
 from asgi_correlation_id import CorrelationIdMiddleware
 import time
+from prometheus_fastapi_instrumentator import Instrumentator
 from logger import setup_logging, logger
 
 setup_logging()
@@ -61,6 +62,9 @@ app.include_router(projects.router)
 app.include_router(todos.router)
 app.include_router(notifications.router)
 app.include_router(activities.router)
+
+# Expose Prometheus metrics
+Instrumentator().instrument(app).expose(app)
 
 @app.on_event("startup")
 async def startup_event():

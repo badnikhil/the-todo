@@ -10,3 +10,4 @@ redis
 celery
 structlog
 asgi-correlation-id
+prometheus-fastapi-instrumentator
