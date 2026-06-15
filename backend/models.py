@@ -58,3 +58,19 @@ class Notification(Base):
     
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("User")
+
+class Activity(Base):
+    __tablename__ = "activities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    action = Column(String)
+    entity_name = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user_id = Column(Integer, ForeignKey("users.id"))
+    todo_id = Column(Integer, ForeignKey("todos.id"), nullable=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+
+    user = relationship("User")
+    todo = relationship("Todo")
+    project = relationship("Project")

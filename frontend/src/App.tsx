@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Check, LogOut, LogIn, UserPlus, Folder, Inbox, LayoutDashboard, Edit2, X, Users, Paperclip, Upload, User as UserIcon, Calendar, Bell } from 'lucide-react';
+import { Plus, Trash2, Check, LogOut, LogIn, UserPlus, Folder, Inbox, LayoutDashboard, Edit2, X, Users, Paperclip, Upload, User as UserIcon, Calendar, Bell, Activity } from 'lucide-react';
 import './index.css';
 
 interface User {
@@ -48,7 +48,8 @@ function App() {
   const [usersList, setUsersList] = useState<User[]>([]);
   
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<'todos' | 'admin'>('todos');
+  const [viewMode, setViewMode] = useState<'todos' | 'admin' | 'activity'>('todos');
+  const [activities, setActivities] = useState<any[]>([]);
   
   const [newTitle, setNewTitle] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
@@ -73,6 +74,7 @@ function App() {
   const [globalTodos, setGlobalTodos] = useState<number>(0);
   const [globalProjects, setGlobalProjects] = useState<number>(0);
   const [notifications, setNotifications] = useState<{id: number, message: string, is_read: boolean, created_at: string}[]>([]);
+  const [toasts, setToasts] = useState<{id: string, message: string}[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const wsReconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,6 +98,17 @@ function App() {
           if (data.total_projects !== undefined) setGlobalProjects(data.total_projects);
         } else if (data.type === 'notification') {
           setNotifications(prev => [{id: data.id, message: data.message, is_read: data.is_read, created_at: new Date().toISOString()}, ...prev]);
+        } else if (data.type === 'new_activity') {
+          const act = data.activity;
+          setActivities(prev => [act, ...prev]);
+          
+          const toastId = Math.random().toString(36).substr(2, 9);
+          const toastMessage = `${act.user?.email || 'Someone'} performed: ${act.action}${act.entity_name ? ` - "${act.entity_name}"` : ''}`;
+          setToasts(prev => [...prev, { id: toastId, message: toastMessage }]);
+          
+          setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== toastId));
+          }, 4000);
         }
       };
 
@@ -140,6 +153,8 @@ function App() {
   useEffect(() => {
     if (viewMode === 'admin' && token) {
       fetchAllUsers();
+    } else if (viewMode === 'activity' && token) {
+      fetchActivities();
     }
   }, [viewMode, token]);
 
@@ -429,6 +444,19 @@ function App() {
     }
   };
 
+  const fetchActivities = async () => {
+    try {
+      const response = await fetch(`${API_URL}/activities/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      setActivities(data);
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+    }
+  };
+
   const markNotificationRead = async (id: number) => {
     try {
       const response = await fetch(`${API_URL}/notifications/${id}/read`, {
@@ -643,6 +671,15 @@ function App() {
             </button>
           )}
 
+          <button 
+            className={`nav-item ${viewMode === 'activity' ? 'active' : ''}`}
+            onClick={() => { setViewMode('activity'); setSelectedProjectId(null); }}
+          >
+            <div className="nav-item-content">
+              <Activity size={18} /> <span>Activity Feed</span>
+            </div>
+          </button>
+
           <div className="nav-section">
             <h3>Projects</h3>
             {projects.map(p => (
@@ -782,7 +819,30 @@ function App() {
       {/* Main Content Area */}
       <main className="main-content">
         {appError && <div className="app-error-banner">{appError}</div>}
-        {viewMode === 'admin' ? (
+        {viewMode === 'activity' ? (
+          <div className="app-container">
+            <div className="header">
+              <h1>Activity Feed</h1>
+              <p>Recent actions across your todos.</p>
+            </div>
+            <div className="todos-list">
+              {activities.length === 0 ? (
+                <div className="empty-state">No activity yet.</div>
+              ) : (
+                activities.map((act, index) => (
+                  <div key={act.id} className="todo-item" style={{ animationDelay: `${index * 0.05}s` }}>
+                    <div className="todo-content">
+                      <div className="todo-title"><span style={{fontWeight: 600, color: 'var(--primary)'}}>{act.user?.email || 'Someone'}</span> - {act.action}{act.entity_name ? ` - "${act.entity_name}"` : ''}</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {new Date(act.created_at + 'Z').toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : viewMode === 'admin' ? (
           <div className="app-container">
             <div className="header">
               <h1>Admin Dashboard</h1>
@@ -1002,6 +1062,15 @@ function App() {
           </div>
         )}
       </main>
+      
+      {/* Toast Notifications */}
+      <div className="toast-container">
+        {toasts.map(toast => (
+          <div key={toast.id} className="toast">
+            {toast.message}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

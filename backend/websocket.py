@@ -32,6 +32,7 @@ class ConnectionManager:
                     pass
 
 manager = ConnectionManager()
+redis_pub_client = redis_async.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=6379, db=0, decode_responses=True)
 
 async def broadcast_stats(total_todos: int = None, total_projects: int = None):
     msg = {"type": "stats_update"}
@@ -39,16 +40,23 @@ async def broadcast_stats(total_todos: int = None, total_projects: int = None):
         msg["total_todos"] = total_todos
     if total_projects is not None:
         msg["total_projects"] = total_projects
-    await manager.broadcast(msg)
+    await redis_pub_client.publish("broadcasts", json.dumps(msg))
+
+async def broadcast_activity(activity: dict):
+    msg = {"type": "new_activity", "activity": activity}
+    await redis_pub_client.publish("broadcasts", json.dumps(msg))
 
 async def redis_listener():
     r = redis_async.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=6379, db=0, decode_responses=True)
     pubsub = r.pubsub()
-    await pubsub.subscribe("notifications")
+    await pubsub.subscribe("notifications", "broadcasts")
     async for message in pubsub.listen():
         if message["type"] == "message":
             try:
                 data = json.loads(message["data"])
-                await manager.send_personal_message(data, data["email"])
+                if message["channel"] == "notifications":
+                    await manager.send_personal_message(data, data["email"])
+                elif message["channel"] == "broadcasts":
+                    await manager.broadcast(data)
             except Exception as e:
-                print(f"Error processing notification: {e}")
+                print(f"Error processing message: {e}")

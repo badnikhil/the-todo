@@ -102,3 +102,19 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+# --- ACTIVITY FEED ---
+class ActivityBase(BaseModel):
+    action: str
+    entity_name: Optional[str] = None
+
+class ActivityOut(ActivityBase):
+    id: int
+    created_at: datetime
+    user_id: int
+    todo_id: Optional[int] = None
+    project_id: Optional[int] = None
+    user: UserBase
+    
+    class Config:
+        from_attributes = True

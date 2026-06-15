@@ -12,7 +12,7 @@ import models
 from dependencies import redis_client
 from websocket import manager, broadcast_stats, redis_listener
 
-from routers import auth, users, projects, todos, notifications
+from routers import auth, users, projects, todos, notifications, activities
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -38,6 +38,7 @@ app.include_router(users.router)
 app.include_router(projects.router)
 app.include_router(todos.router)
 app.include_router(notifications.router)
+app.include_router(activities.router)
 
 @app.on_event("startup")
 async def startup_event():
