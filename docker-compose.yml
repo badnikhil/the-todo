@@ -43,39 +43,41 @@ services:
     depends_on:
       - backend
 
-  celery_worker:
-    build:
-      context: ./backend
-    command: celery -A worker.celery_app worker --loglevel=info
-    environment:
-      DATABASE_URL: postgresql://user:password@db:5432/todo_db
-      REDIS_HOST: redis
-      REDIS_URL: redis://redis:6379/1
-      LOKI_URL: http://loki:3100/loki/api/v1/push
-      OTLP_HTTP_ENDPOINT: http://tempo:4318/v1/traces
-    depends_on:
-      - db
-      - redis
-      - backend
-      - loki
-      - tempo
 
-  celery_beat:
-    build:
-      context: ./backend
-    command: celery -A worker.celery_app beat --loglevel=info
-    environment:
-      DATABASE_URL: postgresql://user:password@db:5432/todo_db
-      REDIS_HOST: redis
-      REDIS_URL: redis://redis:6379/1
-      LOKI_URL: http://loki:3100/loki/api/v1/push
-      OTLP_HTTP_ENDPOINT: http://tempo:4318/v1/traces
-    depends_on:
-      - db
-      - redis
-      - backend
-      - loki
-      - tempo
+# celery worker will consume lot of CPU in deployment thats why its commented out.
+  # celery_worker:
+  #   build:
+  #     context: ./backend
+  #   command: celery -A worker.celery_app worker --loglevel=info
+  #   environment:
+  #     DATABASE_URL: postgresql://user:password@db:5432/todo_db
+  #     REDIS_HOST: redis
+  #     REDIS_URL: redis://redis:6379/1
+  #     LOKI_URL: http://loki:3100/loki/api/v1/push
+  #     OTLP_HTTP_ENDPOINT: http://tempo:4318/v1/traces
+  #   depends_on:
+  #     - db
+  #     - redis
+  #     - backend
+  #     - loki
+  #     - tempo
+
+  # celery_beat:
+  #   build:
+  #     context: ./backend
+  #   command: celery -A worker.celery_app beat --loglevel=info
+  #   environment:
+  #     DATABASE_URL: postgresql://user:password@db:5432/todo_db
+  #     REDIS_HOST: redis
+  #     REDIS_URL: redis://redis:6379/1
+  #     LOKI_URL: http://loki:3100/loki/api/v1/push
+  #     OTLP_HTTP_ENDPOINT: http://tempo:4318/v1/traces
+  #   depends_on:
+  #     - db
+  #     - redis
+  #     - backend
+  #     - loki
+  #     - tempo
 
   prometheus:
     image: prom/prometheus:latest
