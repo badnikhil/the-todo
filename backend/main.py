@@ -72,12 +72,12 @@ async def log_requests(request: Request, call_next):
         raise
 
 # Include Routers
-app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(projects.router)
-app.include_router(todos.router)
-app.include_router(notifications.router)
-app.include_router(activities.router)
+app.include_router(auth.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(projects.router, prefix="/api")
+app.include_router(todos.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
+app.include_router(activities.router, prefix="/api")
 
 # Expose Prometheus metrics
 Instrumentator().instrument(app).expose(app)
@@ -89,7 +89,7 @@ RedisInstrumentor().instrument()
 async def startup_event():
     asyncio.create_task(redis_listener())
 
-@app.websocket("/ws")
+@app.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Depends(get_db)):
     email = await run_in_threadpool(redis_client.get, f"session:{token}")
     if not email:

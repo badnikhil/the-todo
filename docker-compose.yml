@@ -25,12 +25,15 @@ services:
     environment:
       DATABASE_URL: postgresql://user:password@db:5432/todo_db
       REDIS_HOST: redis
+      REDIS_URL: redis://redis:6379/1
       FRONTEND_URLS: http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://localhost
       LOKI_URL: http://loki:3100/loki/api/v1/push
       OTLP_HTTP_ENDPOINT: http://tempo:4318/v1/traces
     depends_on:
       - db
       - redis
+      - loki
+      - tempo
 
   frontend:
     build:
@@ -47,12 +50,15 @@ services:
     environment:
       DATABASE_URL: postgresql://user:password@db:5432/todo_db
       REDIS_HOST: redis
+      REDIS_URL: redis://redis:6379/1
       LOKI_URL: http://loki:3100/loki/api/v1/push
       OTLP_HTTP_ENDPOINT: http://tempo:4318/v1/traces
     depends_on:
       - db
       - redis
       - backend
+      - loki
+      - tempo
 
   celery_beat:
     build:
@@ -61,12 +67,15 @@ services:
     environment:
       DATABASE_URL: postgresql://user:password@db:5432/todo_db
       REDIS_HOST: redis
+      REDIS_URL: redis://redis:6379/1
       LOKI_URL: http://loki:3100/loki/api/v1/push
       OTLP_HTTP_ENDPOINT: http://tempo:4318/v1/traces
     depends_on:
       - db
       - redis
       - backend
+      - loki
+      - tempo
 
   prometheus:
     image: prom/prometheus:latest

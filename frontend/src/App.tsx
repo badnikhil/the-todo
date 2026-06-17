@@ -28,8 +28,8 @@ interface Project {
   owner_id: number;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/ws';
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/api/ws';
 
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));

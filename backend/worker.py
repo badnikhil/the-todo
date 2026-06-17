@@ -64,9 +64,7 @@ def check_reminders():
             if todo.owner and todo.owner.email:
                 message_text = f"Reminder: '{todo.title}' is overdue!"
                 
-                # Phase 15: Send reminder email
-                from email_service import send_reminder_email
-                send_reminder_email(todo.owner.email, todo.title, str(todo.due_date))
+
                 
                 # Save to Database
                 new_notification = Notification(
