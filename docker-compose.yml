@@ -17,6 +17,57 @@ services:
     volumes:
       - redis_data:/data
 
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/todo_db
+      REDIS_HOST: redis
+      FRONTEND_URLS: http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://localhost
+      LOKI_URL: http://loki:3100/loki/api/v1/push
+      OTLP_HTTP_ENDPOINT: http://tempo:4318/v1/traces
+    depends_on:
+      - db
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  celery_worker:
+    build:
+      context: ./backend
+    command: celery -A worker.celery_app worker --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/todo_db
+      REDIS_HOST: redis
+      LOKI_URL: http://loki:3100/loki/api/v1/push
+      OTLP_HTTP_ENDPOINT: http://tempo:4318/v1/traces
+    depends_on:
+      - db
+      - redis
+      - backend
+
+  celery_beat:
+    build:
+      context: ./backend
+    command: celery -A worker.celery_app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://user:password@db:5432/todo_db
+      REDIS_HOST: redis
+      LOKI_URL: http://loki:3100/loki/api/v1/push
+      OTLP_HTTP_ENDPOINT: http://tempo:4318/v1/traces
+    depends_on:
+      - db
+      - redis
+      - backend
+
   prometheus:
     image: prom/prometheus:latest
     ports:
@@ -35,6 +86,17 @@ services:
     depends_on:
       - prometheus
       - loki
+      - tempo
+
+  tempo:
+    image: grafana/tempo:latest
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200:3200"   # tempo
+      - "4317:4317"   # otlp grpc
+      - "4318:4318"   # otlp http
 
   loki:
     image: grafana/loki:latest

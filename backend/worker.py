@@ -5,16 +5,32 @@ from database import SessionLocal
 from models import Todo, Notification
 import redis
 import json
+from opentelemetry.instrumentation.celery import CeleryInstrumentor
 
 redis_client = redis.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=6379, db=0, decode_responses=True)
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/1")
+
+from opentelemetry import trace
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
 celery_app = Celery(
     "worker",
     broker=redis_url,
     backend=redis_url
 )
+
+resource = Resource.create({"service.name": "todo-celery-worker"})
+tracer_provider = TracerProvider(resource=resource)
+trace.set_tracer_provider(tracer_provider)
+otlp_endpoint = os.getenv("OTLP_HTTP_ENDPOINT", "http://127.0.0.1:4318/v1/traces")
+otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+
+CeleryInstrumentor().instrument()
 
 celery_app.conf.beat_schedule = {
     'check-reminders-every-10-seconds': {

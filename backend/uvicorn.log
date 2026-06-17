@@ -1,0 +1,7 @@
+INFO:     Started server process [64927]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)
+INFO:main:{"method": "POST", "url": "http://localhost:8001/login", "event": "request_started", "level": "info", "logger": "main", "timestamp": "2026-06-17T19:42:30.484557Z"}
+INFO:main:{"method": "POST", "url": "http://localhost:8001/login", "status_code": 401, "process_time": 0.022400856018066406, "event": "request_finished", "level": "info", "logger": "main", "timestamp": "2026-06-17T19:42:30.506943Z"}
+INFO:     127.0.0.1:40298 - "POST /login HTTP/1.1" 401 Unauthorized

@@ -20,10 +20,26 @@ from websocket import manager, broadcast_stats, redis_listener
 
 from routers import auth, users, projects, todos, notifications, activities
 
+from opentelemetry import trace
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
+
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Todo API")
+
+resource = Resource.create({"service.name": "todo-backend"})
+tracer_provider = TracerProvider(resource=resource)
+trace.set_tracer_provider(tracer_provider)
+otlp_endpoint = os.getenv("OTLP_HTTP_ENDPOINT", "http://127.0.0.1:4318/v1/traces")
+otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
 
 # Setup upload directories
 os.makedirs("uploads/profiles", exist_ok=True)
@@ -65,6 +81,9 @@ app.include_router(activities.router)
 
 # Expose Prometheus metrics
 Instrumentator().instrument(app).expose(app)
+FastAPIInstrumentor.instrument_app(app)
+SQLAlchemyInstrumentor().instrument(engine=engine)
+RedisInstrumentor().instrument()
 
 @app.on_event("startup")
 async def startup_event():
