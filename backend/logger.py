@@ -1,6 +1,8 @@
 import logging
+import logging_loki
 import structlog
 from asgi_correlation_id import correlation_id
+import os
 
 def add_correlation_id(logger, method_name, event_dict):
     req_id = correlation_id.get()
@@ -28,5 +30,13 @@ def setup_logging():
     # Optional: configure stdlib logging to pass to structlog
     # Actually, to integrate nicely with FastAPI/Uvicorn, we set the root logger level.
     logging.basicConfig(level=logging.INFO)
+
+    loki_url = os.getenv("LOKI_URL", "http://localhost:3100/loki/api/v1/push")
+    loki_handler = logging_loki.LokiHandler(
+        url=loki_url,
+        tags={"application": "todo-backend"},
+        version="1",
+    )
+    logging.getLogger("").addHandler(loki_handler)
 
 logger = structlog.get_logger()
