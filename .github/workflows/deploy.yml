@@ -1,0 +1,28 @@
+name: Deploy to GCP VM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu
+    steps:
+      - name: Execute deployment script on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            # Navigate to the project directory
+            sudo su
+            cd /home/${{ secrets.SERVER_USERNAME }}/todo
+            
+            # Pull latest changes from the main branch
+            git pull origin main
+            
+            # Rebuild and restart the Docker containers in the background
+            sudo docker compose down
+            sudo docker compose up --build -d
