@@ -44,7 +44,7 @@ tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
 # Setup upload directories
 os.makedirs("uploads/profiles", exist_ok=True)
 os.makedirs("uploads/todos", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/api/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
