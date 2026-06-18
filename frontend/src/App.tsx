@@ -597,9 +597,9 @@ function App() {
       <div className="auth-page">
         <div className="auth-container">
           <div className="auth-card">
-            <div className="header" style={{ marginBottom: '2rem' }}>
+            <div className="auth-header">
               <h1>{isLoginView ? 'Welcome Back' : 'Create Account'}</h1>
-              <p>Todos</p>
+              <p>{isLoginView ? 'Sign in to access your Todos' : 'Join us and start organizing'}</p>
             </div>
             
             <form className="auth-form" onSubmit={handleAuth}>
