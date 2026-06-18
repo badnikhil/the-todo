@@ -29,6 +29,8 @@ services:
       FRONTEND_URLS: http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://localhost
       LOKI_URL: http://loki:3100/loki/api/v1/push
       OTLP_HTTP_ENDPOINT: http://tempo:4318/v1/traces
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       - db
       - redis
@@ -120,3 +122,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:
